@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <input type="text" v-model="text">
+    {{text}}
+  </div>
+
+  <script>
+    /**
+     * @description 节点编译
+     * @params node(object): 节点 vm: MyVue实例
+     */
+    function nodeCompile (node, vm) {
+      let reg = /\{\{(.*)\}\}/ // 匹配插值表达式中的变量名
+
+      // 元素节点
+      if (node.nodeType === 1) {
+        let attrs = node.attributes
+        for(let i = 0; i < attrs.length; i++) {
+          if (attrs[i].nodeName === 'v-model') {
+            let name = attrs[i].nodeValue
+            node.addEventListener('input', function (e) {
+              vm.data[name] = e.target.value
+            })
+            node.value = vm.data[name]
+          }
+        }
+      }
+
+      // 文本节点
+      if (node.nodeType === 3) {
+        if (reg.test(node.nodeValue)) {
+          let name = RegExp.$1.trim()
+          new Watcher(node, name, vm) // 文本节点即为订阅者
+        }
+      }
+    }
+
+    /**
+     * @description: 将子节点添加到文档片段
+     * @params node(object): 节点 vm: MyVue实例
+     * @return fragment: 文档片段
+     */
+    function childNodeToFragment (node, vm) {
+      let fragment = document.createDocumentFragment()
+      let child
+
+      // 注: 该操作会清除node的子节点
+      while (child = node.firstChild) {
+        nodeCompile(child, vm)
+        fragment.appendChild(child)
+      }
+
+      return fragment
+    }
+
+    /**
+     * @description 劫持对象属性
+     * @params obj: 劫持对象 key: 需要劫持的对象属性 value: 属性值
+     */
+    function defineReactive (obj, key, value) {
+      let dep = new Dep() // vm.data中的每个属性都需要维护一个主题对象dep
+      Object.defineProperty(obj, key, {
+        enumerable: true,
+        configurable: true,
+        get () {
+          if (Dep.target) dep.addSub(Dep.target)
+          return value
+        },
+        set (newValue) {
+          if (newValue === value) return
+          value = newValue // value用于维护对象属性值
+          dep.notify() // 发布-订阅模式中的发布者
+        }
+      })
+    }
+
+    /**
+     * @description 劫持对象的所有属性
+     * @params obj: 需要劫持的对象
+     */
+    function observe (obj) {
+      Object.keys(obj).forEach(function (key) {
+        defineReactive(obj, key, obj[key])
+      })
+    }
+
+    /**
+     * @description 发布-订阅模式中的主题对象
+     */
+    function Dep () {
+      this.subs = [] // 维护一个订阅者列表
+    }
+    Dep.prototype = {
+      /**
+       * @description 添加订阅者
+       * @params sub: 订阅者
+       */
+      addSub (sub) {
+        this.subs.push(sub)
+      },
+      /**
+       * @description 通知订阅者更新
+       */
+      notify () {
+        this.subs.forEach(function (sub) {
+          sub.update()
+        })
+      }
+    }
+
+    /**
+     * @description 发布-订阅模式中的订阅者
+     * @params node(object): 节点 name: vm.data属性名 vm: MyVue实例
+     */
+    function Watcher (node, name, vm) {
+      Dep.target = this
+      this.node = node
+      this.name = name
+      this.vm = vm
+      this.update()
+      Dep.target = null
+    }
+    Watcher.prototype = {
+      /**
+       * @description 订阅者更新视图
+       */
+      update () {
+        this.get()
+        this.node.nodeValue = this.value
+      },
+      get () {
+        this.value = this.vm.data[this.name]
+      }
+    }
+
+    /**
+     * @description 核心构造函数
+     */
+    function MyVue (option) {
+      this.data = option.data
+      observe(this.data)
+
+      let id = option.el
+      let dom = document.getElementById(id)
+      let childNodes = childNodeToFragment(dom, this)
+      dom.appendChild(childNodes)
+    }
+
+    // 入口
+    let vm = new MyVue({
+      el: 'app',
+      data: {
+        text: 'hello world'
+      }
+    })
+  </script>
+</body>
+</html>
