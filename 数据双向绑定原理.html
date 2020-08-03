@@ -15,6 +15,7 @@
 <body>
   <div id="app">
     <input type="text" v-model="text">
+    <input type="text" v-model="text">
     {{text}}
   </div>
 
@@ -84,6 +85,7 @@
           if (newValue === value) return
           value = newValue // value用于维护对象属性值
           dep.notify() // 发布-订阅模式中的发布者
+          dep.updateInput(key, value)
         }
       })
     }
@@ -118,6 +120,14 @@
       notify () {
         this.subs.forEach(function (sub) {
           sub.update()
+        })
+      },
+      /**
+       * @description 更新所有input的value
+       */
+      updateInput (name, value) {
+        document.querySelectorAll(`input[v-model=${name}]`).forEach(input => {
+          input.value = value
         })
       }
     }
